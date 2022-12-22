@@ -36,7 +36,7 @@ steps:
   - id: 'deploy-to-cloud-run'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
-    args: ['beta', 'run', 'jobs', 'create', 'spotifyapp', 
+    args: ['beta', 'run', 'jobs', 'execute', 'spotifyapp', 
            '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
            '--region', 'us-central1'
            #'--platform', 'managed',
