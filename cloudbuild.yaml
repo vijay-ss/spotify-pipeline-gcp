@@ -40,7 +40,8 @@ steps:
            '--region', 'us-central1',
            '--platform', 'managed',
            '--allow-unauthenticated',
-           '--port', '8080']
+           '--port=8080'
+           ]
 
 images:
   # - 'us-central1-docker.pkg.dev/${PROJECT_ID}/python:${SHORT_SHA}'
