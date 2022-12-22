@@ -41,3 +41,5 @@ if __name__ == "__main__":
     upload_blob(bucket_name, 'playback_hist.json', f'00_source/{upload_string}/playback_hist.json')
     upload_blob(bucket_name, 'track_genres.json', f'00_source/{upload_string}/track_genres.json')
     upload_blob(bucket_name, 'track_features.json', f'00_source/{upload_string}/track_features.json')
+
+    print('upload complete.')
