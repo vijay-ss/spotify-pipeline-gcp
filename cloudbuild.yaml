@@ -40,7 +40,7 @@ steps:
            '--region', 'us-central1',
            '--platform', 'managed',
            '--allow-unauthenticated',
-           '--port=8080'
+           '--port=8080', '--host=0.0.0.0'
            ]
 
 images:
