@@ -1,10 +1,4 @@
 steps:
-  # Install dependencies
-  # - id: 'install-python-dependencies'
-  #   name: python
-  #   entrypoint: pip
-  #   args: ["install", "-r", "requirements.txt", "--user"]
-
   - id: 'create-repository'
     name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'gcloud'
@@ -26,7 +20,8 @@ steps:
           '--network=cloudbuild',
           '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
           '-f', 'Dockerfile',
-          '.']
+          '.'
+          ]
 
   - id: 'push-image-to-artifact-registry'
     name: 'gcr.io/cloud-builders/docker'
@@ -36,16 +31,23 @@ steps:
   - id: 'deploy-to-cloud-run'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
-    args: ['beta', 'run', 'jobs', 'execute', 'spotifyapp', 
-           #'--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
-           '--region', 'us-central1'
-           #'--platform', 'managed',
-           #'--allow-unauthenticated',
-           #'--port=8080'
-           ]
+    args: ['beta', 'run', 'jobs', 'update',
+          'spotifyapp', 
+          '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
+          '--region', 'us-central1',
+          '--task-timeout', '3600',
+          '--max-retries', '1'          
+          ]
     waitFor: ['push-image-to-artifact-registry']
 
+  # - id: 'execute-cloud-run'
+  #   name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  #   entrypoint: 'gcloud'
+  #   args: ['beta', 'run', 'jobs', 'execute',
+  #         'spotifyapp',
+  #         '--region', 'us-central1'
+  #          ]
+  #   waitFor: ['push-image-to-artifact-registry']    
+
 images:
-  # - 'us-central1-docker.pkg.dev/${PROJECT_ID}/python:${SHORT_SHA}'
-  # - 'us-central1-docker.pkg.dev/${PROJECT_ID}/python:latest'
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest'
