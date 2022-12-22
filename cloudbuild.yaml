@@ -42,6 +42,7 @@ steps:
            '--allow-unauthenticated',
            '--port=8080'
            ]
+    waitFor: ['push-image-to-artifact-registry']
 
 images:
   # - 'us-central1-docker.pkg.dev/${PROJECT_ID}/python:${SHORT_SHA}'
