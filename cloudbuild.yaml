@@ -34,7 +34,7 @@ steps:
     waitFor: ['build-docker-image']
 
   - id: 'deploy-to-cloud-run'
-    name: google/cloud-sdk
+    name: 'google/cloud-sdk'
     args: ['gcloud', 'run', 'deploy', 'spotifyapp', 
            '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
            '--region', 'us-central1',
