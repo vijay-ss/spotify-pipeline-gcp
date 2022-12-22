@@ -39,7 +39,8 @@ steps:
            '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
            '--region', 'us-central1',
            '--platform', 'managed',
-           '--allow-unauthenticated']
+           '--allow-unauthenticated',
+           '--port', '8080']
 
 images:
   # - 'us-central1-docker.pkg.dev/${PROJECT_ID}/python:${SHORT_SHA}'

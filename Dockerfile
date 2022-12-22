@@ -6,4 +6,4 @@ ENV HOST 0.0.0.0
 
 RUN pip install -r requirements.txt
 COPY . ./
-ENTRYPOINT ["python3", "main.py", "-port=8080"]
+ENTRYPOINT ["python3", "main.py"]
