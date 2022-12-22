@@ -1,0 +1,47 @@
+steps:
+  # Install dependencies
+  # - id: 'install-python-dependencies'
+  #   name: python
+  #   entrypoint: pip
+  #   args: ["install", "-r", "requirements.txt", "--user"]
+
+  - id: 'create-repository'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'gcloud'
+    args: [
+    'artifacts',
+    'repositories',
+    'create',
+    'data-pipeline',
+    '--repository-format=docker',
+    '--location=us-central1',
+    '--project=${PROJECT_ID}',
+    '--description="Docker image for data ingestion and pipeline execution"' 
+    ]
+    allowFailure: true
+
+  - id: 'build-docker-image'
+    name: 'gcr.io/cloud-builders/docker'
+    args: ['build',
+          '--network=cloudbuild',
+          '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
+          '-f', 'Dockerfile',
+          '.']
+
+  - id: 'push-image-to-artifact-registry'
+    name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest']
+    waitFor: ['build-docker-image']
+
+  - id: 'deploy-to-cloud-run'
+    name: google/cloud-sdk
+    args: ['gcloud', 'run', 'deploy', 'spotifyapp', 
+           '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
+           '--region', 'us-central1',
+           '--platform', 'managed',
+           '--allow-unauthenticated']
+
+images:
+  # - 'us-central1-docker.pkg.dev/${PROJECT_ID}/python:${SHORT_SHA}'
+  # - 'us-central1-docker.pkg.dev/${PROJECT_ID}/python:latest'
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest'
