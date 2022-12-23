@@ -1,22 +1,34 @@
 import json
+import base64
 import requests
 from datetime import datetime, timedelta
 
-class Refresh_Access_Token:
-    def __init__(self, refresh_token: str, base_64: str):
-        self._refresh_token = refresh_token
-        self._base_64 = base_64
+class SpotifyToken:
+    """
+    Basic authentication for retrieving access token for making api calls.
+
+    Args:
+        refresh_token (str): unique token for refreshing the access_token. 
+            https://developer.spotify.com/documentation/ios/guides/token-swap-and-refresh/
+        client_id (str): unique spotify developer id.
+        client_secret (str): unique spotify developer secret.
+    """
+    def __init__(self, refresh_token: str, client_id: str, client_secret: str) -> str:
+        self.__refresh_token = refresh_token
+        auth_string = client_id + ":" + client_secret
+        auth_bytes = auth_string.encode("utf-8")
+        self.__auth_base64 = str(base64.b64encode(auth_bytes), "utf-8")
     
     def request_token(self):
-
+        """Retrieve access token."""
         url = "https://accounts.spotify.com/api/token"
 
         data = {
             "grant_type": "refresh_token",
-            "refresh_token": self._refresh_token
+            "refresh_token": self.__refresh_token
             }
 
-        headers = {"Authorization": "Basic " + self._base_64}
+        headers = {"Authorization": "Basic " + self.__auth_base64}
 
         response = requests.post(url, data=data, headers=headers)
 
