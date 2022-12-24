@@ -4,7 +4,7 @@ import yaml
 from google.cloud import storage
 from google.cloud import secretmanager
 
-def credentials_accessor():
+def get_credentials():
     try:
         print("Attempting local import...")
         with open('.env.yml') as file:
