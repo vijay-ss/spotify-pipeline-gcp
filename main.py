@@ -3,14 +3,14 @@ import json
 import logging
 from datetime import datetime
 
-from gcp_utils.common_functions import upload_blob, credentials_accessor
+from gcp_utils.common_functions import upload_blob, get_credentials
 from spotify_api.auth import SpotifyAuth
 from spotify_api.spotify_api import PlaybackHistory
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     start_time = datetime.now()
-    credentials = credentials_accessor()
+    credentials = get_credentials()
     bucket_name = credentials.get('BUCKET_NAME')
     file_download_location = 'spotify_hist'
     source_folder = '00_source'
