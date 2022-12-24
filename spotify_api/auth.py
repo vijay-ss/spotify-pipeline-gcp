@@ -3,7 +3,7 @@ import base64
 import requests
 from datetime import datetime, timedelta
 
-class SpotifyToken:
+class SpotifyAuth:
     """
     Basic authentication for retrieving access token for making api calls.
 
@@ -35,6 +35,6 @@ class SpotifyToken:
         response_json = response.json()
         expiry = int(int(response_json["expires_in"]) / 3600)
         expires_at_dtm = datetime.now() + timedelta(hours=expiry)
-        print(f"Refresh token expires in {expiry} hour at: {expires_at_dtm}")
+        print(f"Access token expires in {expiry} hour at: {expires_at_dtm}")
 
         return response_json["access_token"]
