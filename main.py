@@ -1,16 +1,22 @@
 import os
 import json
+import logging
 from datetime import datetime
 
 from gcp_utils.common_functions import upload_blob, credentials_accessor
-from spotify_api.auth import SpotifyToken
+from spotify_api.auth import SpotifyAuth
 from spotify_api.spotify_api import PlaybackHistory
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    start_time = datetime.now()
     credentials = credentials_accessor()
     bucket_name = credentials.get('BUCKET_NAME')
-    t = SpotifyToken(credentials.get('REFRESH_TOKEN'), credentials.get('CLIENT_ID'), credentials.get('CLIENT_SECRET'))
-    access_token = t.request_token()
+    file_download_location = 'spotify_hist'
+    source_folder = '00_source'
+
+    auth = SpotifyAuth(credentials.get('REFRESH_TOKEN'), credentials.get('CLIENT_ID'), credentials.get('CLIENT_SECRET'))
+    access_token = auth.request_token()
 
     api = PlaybackHistory(access_token)
     j = api.get_playback_history()
@@ -20,15 +26,17 @@ if __name__ == "__main__":
 
     j_feat = api.get_track_features(track_ids)
     j_genres = api.get_track_genres(artist_ids)
+
+    os.makedirs(file_download_location, exist_ok=True)
     
-    with open('playback_hist.json', 'w') as f:
-     f.write(json.dumps(j, indent=4, sort_keys=True))
+    with open(f'{file_download_location}/playback_hist.json', 'w') as f:
+        f.write(json.dumps(j, indent=4, sort_keys=True))
 
-    with open('track_genres.json', 'w') as f:
-     f.write(json.dumps(j_genres, indent=4, sort_keys=True))
+    with open(f'{file_download_location}/track_genres.json', 'w') as f:
+        f.write(json.dumps(j_genres, indent=4, sort_keys=True))
 
-    with open('track_features.json', 'w') as f:
-     f.write(json.dumps(j_feat, indent=4, sort_keys=True))
+    with open(f'{file_download_location}/track_features.json', 'w') as f:
+        f.write(json.dumps(j_feat, indent=4, sort_keys=True))
 
     current_day = datetime.now().day
     current_month = datetime.now().month
@@ -37,8 +45,10 @@ if __name__ == "__main__":
 
     upload_string = f"{current_year}/{current_month}/{current_day}"
 
-    upload_blob(bucket_name, 'playback_hist.json', f'00_source/{upload_string}/playback_hist.json')
-    upload_blob(bucket_name, 'track_genres.json', f'00_source/{upload_string}/track_genres.json')
-    upload_blob(bucket_name, 'track_features.json', f'00_source/{upload_string}/track_features.json')
+    for file in os.listdir(file_download_location + '/'):
+        upload_blob(bucket_name, os.path.join(file_download_location, file), f'{source_folder}/{upload_string}/{file}')
+    
+    end_time = datetime.now()
 
-    print('upload complete.')
+    logging.info('Upload to GCS complete.')
+    logging.info(f'Execution time: {end_time - start_time}')
