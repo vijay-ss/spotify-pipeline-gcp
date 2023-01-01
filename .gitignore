@@ -135,3 +135,5 @@ secrets.*
 # downloaded files
 spotify_hist/
 *.json
+
+jobs/

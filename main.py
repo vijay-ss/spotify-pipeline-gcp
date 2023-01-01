@@ -13,7 +13,7 @@ if __name__ == "__main__":
     credentials = get_credentials()
     bucket_name = credentials.get('BUCKET_NAME')
     file_download_location = 'spotify_hist'
-    source_folder = '00_source'
+    source_folder = '00_landing_zone'
 
     auth = SpotifyAuth(credentials.get('REFRESH_TOKEN'), credentials.get('CLIENT_ID'), credentials.get('CLIENT_SECRET'))
     access_token = auth.request_token()
