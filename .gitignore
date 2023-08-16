@@ -135,3 +135,6 @@ secrets.*
 # downloaded files
 spotify_hist/
 *.json
+
+# macos
+*.DS_Store
