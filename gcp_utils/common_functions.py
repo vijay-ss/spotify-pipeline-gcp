@@ -3,6 +3,23 @@ import ast
 import yaml
 from google.cloud import storage
 from google.cloud import secretmanager
+from google.cloud import resourcemanager_v3
+
+
+def get_project_number(project_id) -> str:
+    """Given a project id, return the project number"""
+    # Create a client
+    client = resourcemanager_v3.ProjectsClient()
+    # Initialize request argument(s)
+    request = resourcemanager_v3.SearchProjectsRequest(query=f"id:{project_id}")
+    # Make the request
+    page_result = client.search_projects(request=request)
+    # Handle the response
+    for response in page_result:
+        if response.project_id == project_id:
+            project = response.name
+            return project.replace('projects/', '')
+
 
 def get_credentials():
     try:
@@ -21,7 +38,8 @@ def get_credentials():
 
         print("Attempting GCP import...")
         client = secretmanager.SecretManagerServiceClient()
-        response = client.access_secret_version(request={"name": "projects/220231394371/secrets/credentials/versions/latest"})
+        project_number = get_project_number(os.environ.get("GOOGLE_CLOUD_PROJECT"))
+        response = client.access_secret_version(request={"name": f"projects/{project_number}/secrets/credentials/versions/latest"})
         payload = ast.literal_eval(response.payload.data.decode("UTF-8"))
         print("GCP import successful.")
         

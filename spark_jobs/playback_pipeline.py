@@ -155,17 +155,7 @@ def sparkShape(dataFrame):
 pyspark.sql.dataframe.DataFrame.shape = sparkShape
 print(artists_agg.shape())
 
-# df_output = df_output.select(
-#     "*",
-#     explode('artists').alias('artists_exploded')
-# ).select("*",
-# col('artists_exploded.href').alias('artist_href'),
-# col('artists_exploded.id').alias('artist_id'),
-# col('artists_exploded.name').alias('artist_name'),
-# col('artists_exploded.uri').alias('artist_uri')
-# ).drop('artists_exploded')
-df_output.join(artists_agg, df_output.played_at == artists_agg.played_at, "left").drop("bagged_artists").show()
-
+df_output = df_output.join(artists_agg, df_output.played_at == artists_agg.played_at, "left").drop("bagged_artists")
 df_output = df_output.drop('artists')
 df_output = df_output.drop_duplicates()
 df_output = df_output.sort("played_at")
