@@ -6,18 +6,16 @@ from google.cloud import secretmanager
 from google.cloud import resourcemanager_v3
 
 
-def get_project_number(project_id) -> str:
+def get_project_number(project_id: str) -> str:
     """Given a project id, return the project number"""
-    # Create a client
     client = resourcemanager_v3.ProjectsClient()
-    # Initialize request argument(s)
     request = resourcemanager_v3.SearchProjectsRequest(query=f"id:{project_id}")
-    # Make the request
     page_result = client.search_projects(request=request)
-    # Handle the response
+
     for response in page_result:
         if response.project_id == project_id:
             project = response.name
+
             return project.replace('projects/', '')
 
 
