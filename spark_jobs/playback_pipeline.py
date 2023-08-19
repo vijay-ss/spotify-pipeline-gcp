@@ -1,6 +1,6 @@
 import re
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from google.cloud import storage
 
@@ -27,16 +27,16 @@ conf = spark.sparkContext._jsc.hadoopConfiguration()
 conf.set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
 conf.set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
 
-bucket_name = "playback-history"
+bucket_name = "playback_history"
 source_folder = "00_landing_zone"
 source_filename = "playback_hist.json"
 clean_folder = "01_clean_zone"
 output_subfolder = "playback_hist"
 
-current_day = datetime.now().day
-current_month = datetime.now().month
-current_year = datetime.now().year
-current_date = datetime.now().strftime('%Y-%m-%d')
+yesterday = datetime.now() - timedelta(1)
+current_day = yesterday.day
+current_month = yesterday.month
+current_year = yesterday.year
 current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 logging.debug("Current UTC datetime: " + current_datetime)
@@ -130,22 +130,22 @@ logging.info(f"artists exploded dataframe: {artists_exploded.count()}, {len(arti
 artists_agg = artists_exploded.groupby('played_at', 'id').agg(
   to_json(
     collect_list(
-      struct("artist_name", "artist_id")
+      struct("artist_name", "artist_id", "artist_uri")
     )
   ).alias('bagged_artists')
 )
 artists_agg.printSchema()
 
-def get_artist_names(col):
+def extract_artist_names(col):
     rx = r'(?<="artist_name":").*?(?=")'
     artists = re.findall(rx, col)
     strippedText = str(artists).replace('[','').replace(']','').replace("'", "")
     return strippedText
 
 
-get_artist_names_udf = udf(lambda x: get_artist_names(x))
+extract_artist_names_udf = udf(lambda x: extract_artist_names(x))
 
-artists_agg = artists_agg.withColumn("artists", get_artist_names_udf(col("bagged_artists")))
+artists_agg = artists_agg.withColumn("artist_names", extract_artist_names_udf(col("bagged_artists")))
 artists_agg.show()
 logging.info(f"artists aggregated dataframe: {artists_agg.count()}, {len(artists_agg.columns)}")
 
@@ -159,7 +159,9 @@ df_output = df_output.join(
     artists_agg,
     (df_output.played_at == artists_agg.played_at) & (df_output.id == artists_agg.id),
     "left"
-).select(df_output['*'], artists_agg['artists'])
+).select(df_output['*'], artists_agg['artist_names'], artists_agg['bagged_artists'])
+output_cols = ['played_at','duration_ms', 'href', 'id', 'name', 'uri', 'artist_names', 'bagged_artists', 'popularity', 'type', 'album_id', 'album_name', 'album_release_date', 'album_uri']
+df_output = df_output.select(*output_cols)
 
 df_output = df_output.drop_duplicates()
 df_output = df_output.sort("played_at")

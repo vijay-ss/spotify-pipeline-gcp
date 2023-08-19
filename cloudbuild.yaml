@@ -3,42 +3,62 @@ steps:
     name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'gcloud'
     args: [
-    'artifacts',
-    'repositories',
-    'create',
-    'data-pipeline',
-    '--repository-format=docker',
-    '--location=us-central1',
-    '--project=${PROJECT_ID}',
-    '--description="Docker image for data ingestion and pipeline execution"' 
-    ]
+      'artifacts',
+      'repositories',
+      'create',
+      'data-pipeline',
+      '--repository-format=docker',
+      '--location=us-central1',
+      '--project=${PROJECT_ID}',
+      '--description="Docker image for data ingestion and pipeline execution"' 
+      ]
     allowFailure: true
 
   - id: 'build-docker-image'
     name: 'gcr.io/cloud-builders/docker'
-    args: ['build',
-          '--network=cloudbuild',
-          '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
-          '-f', 'Dockerfile',
-          '.'
-          ]
+    args: [
+      'build',
+      '--network=cloudbuild',
+      '-t',
+      'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
+      '-f',
+      'Dockerfile',
+      '.'
+      ]
 
   - id: 'push-image-to-artifact-registry'
     name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest']
+    args: [
+      'push',
+      'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest'
+      ]
     waitFor: ['build-docker-image']
 
   - id: 'deploy-to-cloud-run'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
-    args: ['beta', 'run', 'jobs', 'update',
-          'spotifyapp', 
-          '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
-          '--region', 'us-central1',
-          '--task-timeout', '3600',
-          '--max-retries', '1'          
-          ]
+    args: [
+      'beta',
+      'run',
+      'jobs',
+      'update',
+      'spotifyapp', 
+      '--image',
+      'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
+      '--region', 'us-central1',
+      '--task-timeout', '3600',
+      '--max-retries', '1'
+      ]
     waitFor: ['push-image-to-artifact-registry']
+  
+  - id: 'upload pyspark file to gcs'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: gsutil
+    args: [
+      'cp',
+      'spark_jobs/playback_pipeline.py',
+      'gs://playback_history/pyspark_jobs/playback_pipeline.py'
+      ]
 
   # - id: 'execute-cloud-run'
   #   name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
