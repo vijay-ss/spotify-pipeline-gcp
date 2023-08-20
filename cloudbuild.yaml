@@ -57,8 +57,28 @@ steps:
     args: [
       'cp',
       'spark_jobs/playback_pipeline.py',
-      'gs://playback_history/pyspark_jobs/playback_pipeline.py'
+      'gs://playback-history/pyspark_jobs/playback_pipeline.py'
       ]
+  
+  - id: 'schedule dataproc job'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: gcloud
+    args: [
+      'scheduler',
+      'jobs',
+      'create',
+      'http',
+      'spotifyapp-playback-pipeline',
+      '--schedule',
+      '30 6 * * *',
+      '--uri',
+      'https://dataproc.googleapis.com/v1/projects/spotify-playback-history/regions/us-central1/workflowTemplates/spotify_workflow:instantiate?alt=json',
+      '--http-method',
+      'POST',
+      '--location',
+      'us-central1'
+    ]
+    allowFailure: true
 
   # - id: 'execute-cloud-run'
   #   name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

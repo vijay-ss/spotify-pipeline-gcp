@@ -27,7 +27,7 @@ conf = spark.sparkContext._jsc.hadoopConfiguration()
 conf.set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
 conf.set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
 
-bucket_name = "playback_history"
+bucket_name = "playback-history"
 source_folder = "00_landing_zone"
 source_filename = "playback_hist.json"
 clean_folder = "01_clean_zone"
@@ -43,6 +43,7 @@ logging.debug("Current UTC datetime: " + current_datetime)
 
 # Create playback history data frame
 json_file_path = f'gs://{bucket_name}/{source_folder}/{current_year}/{current_month}/{current_day}/{source_filename}'
+print(json_file_path)
 df = spark.read.json(json_file_path, multiLine=True)
 df.printSchema()
 df.show()
