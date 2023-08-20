@@ -7,7 +7,7 @@ from google.cloud import resourcemanager_v3
 
 
 def get_project_number(project_id: str) -> str:
-    """Given a project id, return the project number"""
+    """Given a project id, return the project number."""
     client = resourcemanager_v3.ProjectsClient()
     request = resourcemanager_v3.SearchProjectsRequest(query=f"id:{project_id}")
     page_result = client.search_projects(request=request)
@@ -22,6 +22,7 @@ def get_project_number(project_id: str) -> str:
 def get_credentials():
     try:
         print("Attempting local import...")
+
         with open('.env.yml') as file:
             payload = yaml.safe_load(file)
         credential_path = payload.get('CREDENTIALS_PATH')
@@ -33,15 +34,20 @@ def get_credentials():
     except Exception as error:
         print(error)
         print("Local import failed.")
-
         print("Attempting GCP import...")
-        client = secretmanager.SecretManagerServiceClient()
-        project_number = get_project_number(os.environ.get("GOOGLE_CLOUD_PROJECT"))
-        response = client.access_secret_version(request={"name": f"projects/{project_number}/secrets/credentials/versions/latest"})
-        payload = ast.literal_eval(response.payload.data.decode("UTF-8"))
-        print("GCP import successful.")
-        
-        return payload
+
+        try:
+            client = secretmanager.SecretManagerServiceClient()
+            project_number = get_project_number(os.environ.get("PROJECT_ID"))
+            response = client.access_secret_version(request={"name": f"projects/{project_number}/secrets/credentials/versions/latest"})
+            payload = ast.literal_eval(response.payload.data.decode("UTF-8"))
+            print("GCP import successful.")
+
+            return payload
+
+        except Exception as error:
+            print(error)
+            print("GCP import failed.")
 
 
 def upload_blob(bucket_name, source_file_name, destination_blob_name):

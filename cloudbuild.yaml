@@ -23,6 +23,7 @@ steps:
       'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
       '-f',
       'Dockerfile',
+      '--build-arg=_PROJECT_ID=${PROJECT_ID}',
       '.'
       ]
 
@@ -72,21 +73,30 @@ steps:
       '--schedule',
       '30 6 * * *',
       '--uri',
-      'https://dataproc.googleapis.com/v1/projects/spotify-playback-history/regions/us-central1/workflowTemplates/spotify_workflow:instantiate?alt=json',
+      'https://dataproc.googleapis.com/v1/projects/${PROJECT_ID}/regions/us-central1/workflowTemplates/spotify_workflow:instantiate?alt=json',
       '--http-method',
       'POST',
       '--location',
-      'us-central1'
-    ]
+      'us-central1',
+      '--description',
+      'process landing data to curated data',
+      '--oauth-service-account-email',
+      'run-dataproc-workflow@${PROJECT_ID}.iam.gserviceaccount.com'
+      ]
     allowFailure: true
 
-  # - id: 'execute-cloud-run'
-  #   name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  #   entrypoint: 'gcloud'
-  #   args: ['beta', 'run', 'jobs', 'execute',
-  #         'spotifyapp',
-  #         '--region', 'us-central1'
-  #          ]
+  - id: 'execute-cloud-run'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args: [
+      'beta',
+      'run',
+      'jobs',
+      'execute',
+      'spotifyapp',
+      '--region',
+      'us-central1'
+      ]
   #   waitFor: ['push-image-to-artifact-registry']    
 
 images:
