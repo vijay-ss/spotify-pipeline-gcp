@@ -134,6 +134,9 @@ secrets.*
 
 # downloaded files
 spotify_hist/
+albums/
+artists/
+playback_hist/
 *.json
 
 # macos
