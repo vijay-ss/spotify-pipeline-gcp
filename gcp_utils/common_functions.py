@@ -40,7 +40,9 @@ def get_credentials():
             client = secretmanager.SecretManagerServiceClient()
             project_number = get_project_number(os.environ.get("PROJECT_ID"))
             response = client.access_secret_version(
-                request={"name": f"projects/{project_number}/secrets/credentials/versions/latest"}
+                request={
+                    "name": f"projects/{project_number}/secrets/credentials/versions/latest"
+                }
             )
             payload = ast.literal_eval(response.payload.data.decode("UTF-8"))
             print("GCP import successful.")
@@ -52,13 +54,13 @@ def get_credentials():
             print("GCP import failed.")
 
 
-def upload_blob(bucket_name, source_file_name, destination_blob_name):
+def upload_blob(bucket_name: str, source_file_name: str, destination_blob_name: str):
     """Uploads a file to the bucket.
 
     Args:
-        bucket_name (str): ID of GCS bucket.
-        source_file_name (str): Path to file to upload.
-        destination_blob_name (str): ID of GCS object.
+        bucket_name: ID of GCS bucket.
+        source_file_name: Path to file to upload.
+        destination_blob_name: ID of GCS object.
     """
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)

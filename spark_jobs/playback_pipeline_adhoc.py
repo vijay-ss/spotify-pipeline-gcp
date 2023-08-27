@@ -1,3 +1,4 @@
+import os
 import re
 import logging
 from datetime import datetime, timedelta
@@ -68,22 +69,22 @@ def write_to_gcs(df, output_subfolder: str) -> None:
         for human readability.
         """
         try:
-            write_path = f"gs://{bucket_name}/{clean_folder}/{current_year}/{current_month}/{current_day}/{output_subfolder}"
+            write_path = f"gs://{bucket_name}/{clean_folder}/{year}/{month}/{day}/{output_subfolder}"
             df.write.mode("overwrite").format("csv").option("path", write_path).save(header=True)
-            all_blobs = client.list_blobs(bucket_name, prefix=f"{clean_folder}/{current_year}/{current_month}/{current_day}/{output_subfolder}")  
+            all_blobs = client.list_blobs(bucket_name, prefix=f"{clean_folder}/{year}/{month}/{day}/{output_subfolder}")
             fileList = [file.name for file in all_blobs if '.csv' in file.name and '/part-' in file.name]
             output_filepath = fileList[0]
             logging.debug(fileList)
             logging.info(f"Output file written to GCS: {write_path}/{output_filepath}")
 
-            renamed_file = f"{current_year}_{current_month}_{current_day}_{output_subfolder}.csv"
-            renamed_filepath = f"{clean_folder}/{current_year}/{current_month}/{current_day}/{output_subfolder}/{renamed_file}"
+            renamed_file = f"{year}_{month}_{day}_{output_subfolder}.csv"
+            renamed_filepath = f"{clean_folder}/{year}/{month}/{day}/{output_subfolder}/{renamed_file}"
             move_blob(
                 bucket_name=bucket_name,
                 blob_name=output_filepath,
                 destination_bucket_name=bucket_name,
                 destination_blob_name=renamed_filepath
-            )  
+            )
         except Exception as e:
             logging.exception(e, stack_info=True)
 
@@ -142,7 +143,6 @@ def values_from_key(col, key):
     strippedText = str(values).replace('[','').replace(']','').replace("'", "")
 
     return strippedText
-
 
 def udf_values_from_key(key):
         return udf(lambda col: values_from_key(col, key))
@@ -259,62 +259,74 @@ if __name__ == "__main__":
 
     logging.debug("Current UTC datetime: " + current_datetime)
 
-    json_file_path = f'gs://{bucket_name}/{source_folder}/{current_year}/{current_month}/{current_day}/{source_filename}'
-    logging.info(f"Loading source file: {json_file_path}")
-    df = spark.read.json(json_file_path, multiLine=True)
-    print("Source file schema:")
-    df.printSchema()
-    df.show()
-    
-    try:
-        df_albums = parse_albums(df)
-        df_artists = parse_artists(df)
-        bagged_artists = bag_artists(df)
-        df_tracks = parse_tracks(df)
-    except Exception as error:
-         logging.exception(error, stack_info=True)
-
-
-    df_playback = df_tracks.join(
-        bagged_artists,
-        (df_tracks.played_at == bagged_artists.played_at) & (df_tracks.track_id == bagged_artists.id),
-        "left"
-    ).select(
-         df_tracks['*'],
-         bagged_artists['artist_names'],
-         bagged_artists['artist_ids'],
-         bagged_artists['bagged_artists']
-         )
-
-    output_cols = [
-         'played_at',
-         'duration_ms',
-         'duration_s',
-         'duration_min',
-         'track_href',
-         'track_id',
-         'track_name',
-         'track_uri',
-         'artist_names',
-         'artist_ids',
-         'popularity',
-         'album_id',
-         'album_name',
-         'album_release_date',
-         'album_uri'
-         ]
-
-    df_playback = df_playback.select(*output_cols)
-
-    df_playback = df_playback.drop_duplicates()
-    df_playback = df_playback.sort("played_at")
-
-    print("Playback history output file:")
-    df_playback.show()
-    df_playback.printSchema()
-
-    # Write to GCS
     client = storage.Client()
-    write_to_gcs(df_playback, "playback_hist")
-    write_to_gcs(df_albums, "albums")
-    write_to_gcs(df_artists, "artists")
+
+    bucket = client.bucket(bucket_name)
+    for blob in bucket.list_blobs(prefix=source_folder):
+        if blob.name.endswith('playback_hist.json'):
+            filepath = blob.name
+            year = filepath.split("/")[1]
+            month = filepath.split("/")[2]
+            day = filepath.split("/")[3]
+            print(blob.name)
+            print(year, month, day)
+
+            json_file_path = f'gs://{bucket_name}/{source_folder}/{year}/{month}/{day}/{source_filename}'
+            logging.info(f"Loading source file: {json_file_path}")
+            df = spark.read.json(json_file_path, multiLine=True)
+            print("Source file schema:")
+            df.printSchema()
+            df.show()
+            
+            try:
+                df_albums = parse_albums(df)
+                df_artists = parse_artists(df)
+                bagged_artists = bag_artists(df)
+                df_tracks = parse_tracks(df)
+            except Exception as error:
+                logging.exception(error, stack_info=True)
+
+
+            df_playback = df_tracks.join(
+                bagged_artists,
+                (df_tracks.played_at == bagged_artists.played_at) & (df_tracks.track_id == bagged_artists.id),
+                "left"
+            ).select(
+                df_tracks['*'],
+                bagged_artists['artist_names'],
+                bagged_artists['artist_ids'],
+                bagged_artists['bagged_artists']
+                )
+
+            output_cols = [
+                'played_at',
+                'duration_ms',
+                'duration_s',
+                'duration_min',
+                'track_href',
+                'track_id',
+                'track_name',
+                'track_uri',
+                'artist_names',
+                'artist_ids',
+                'popularity',
+                'album_id',
+                'album_name',
+                'album_release_date',
+                'album_uri'
+                ]
+
+            df_playback = df_playback.select(*output_cols)
+
+            df_playback = df_playback.drop_duplicates()
+            df_playback = df_playback.sort("played_at")
+
+            print("Playback history output file:")
+            df_playback.show()
+            df_playback.printSchema()
+
+            # Write to GCS
+            client = storage.Client()
+            write_to_gcs(df_playback, "playback_hist")
+            write_to_gcs(df_albums, "albums")
+            write_to_gcs(df_artists, "artists")
