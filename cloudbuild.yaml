@@ -3,50 +3,114 @@ steps:
     name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'gcloud'
     args: [
-    'artifacts',
-    'repositories',
-    'create',
-    'data-pipeline',
-    '--repository-format=docker',
-    '--location=us-central1',
-    '--project=${PROJECT_ID}',
-    '--description="Docker image for data ingestion and pipeline execution"' 
-    ]
+      'artifacts',
+      'repositories',
+      'create',
+      'data-pipeline',
+      '--repository-format=docker',
+      '--location=us-central1',
+      '--project=${PROJECT_ID}',
+      '--description="Docker image for data ingestion and pipeline execution"' 
+      ]
     allowFailure: true
 
   - id: 'build-docker-image'
     name: 'gcr.io/cloud-builders/docker'
-    args: ['build',
-          '--network=cloudbuild',
-          '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
-          '-f', 'Dockerfile',
-          '.'
-          ]
+    args: [
+      'build',
+      '--network=cloudbuild',
+      '-t',
+      'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
+      '-f',
+      'Dockerfile',
+      '--build-arg=_PROJECT_ID=${PROJECT_ID}',
+      '.'
+      ]
 
   - id: 'push-image-to-artifact-registry'
     name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest']
+    args: [
+      'push',
+      'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest'
+      ]
     waitFor: ['build-docker-image']
 
   - id: 'deploy-to-cloud-run'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
-    args: ['beta', 'run', 'jobs', 'update',
-          'spotifyapp', 
-          '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
-          '--region', 'us-central1',
-          '--task-timeout', '3600',
-          '--max-retries', '1'          
-          ]
+    args: [
+      'beta',
+      'run',
+      'jobs',
+      'update',
+      'spotifyapp', 
+      '--image',
+      'us-central1-docker.pkg.dev/${PROJECT_ID}/data-pipeline/latest',
+      '--region', 'us-central1',
+      '--task-timeout', '3600',
+      '--max-retries', '1'
+      ]
     waitFor: ['push-image-to-artifact-registry']
+  
+  - id: 'upload pyspark file to gcs'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: gsutil
+    args: [
+      'cp',
+      'spark_jobs/playback_pipeline.py',
+      'gs://playback-history/pyspark_jobs/playback_pipeline.py'
+      ]
+
+  - id: 'schedule data extraction'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: gcloud
+    args: [
+      'scheduler',
+      'jobs',
+      'create',
+      'http',
+      'spotifyapp-scheduler-trigger',
+      '--project=${PROJECT_ID}',
+      '--location=us-central1',
+      '--schedule=0 6 * * *',
+      '--uri=https://us-central1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT_ID}/jobs/spotifyapp:run',
+      '--http-method=POST',
+      '--description=extract source data via API',
+      '--oauth-service-account-email=${PROJECT_NUMBER}-compute@developer.gserviceaccount.com',
+      ]
+    allowFailure: true
+  
+  - id: 'schedule dataproc job'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: gcloud
+    args: [
+      'scheduler',
+      'jobs',
+      'create',
+      'http',
+      'spotifyapp-playback-pipeline',
+      '--project=${PROJECT_ID}',
+      '--location=us-central1',
+      '--schedule=30 6 * * *',
+      '--uri=https://dataproc.googleapis.com/v1/projects/${PROJECT_ID}/regions/us-central1/workflowTemplates/spotify_workflow:instantiate?alt=json',
+      '--http-method=POST',
+      '--description=process landing data to curated data',
+      '--oauth-service-account-email=run-dataproc-workflow@${PROJECT_ID}.iam.gserviceaccount.com',
+      ]
+    allowFailure: true
 
   # - id: 'execute-cloud-run'
   #   name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   #   entrypoint: 'gcloud'
-  #   args: ['beta', 'run', 'jobs', 'execute',
-  #         'spotifyapp',
-  #         '--region', 'us-central1'
-  #          ]
+  #   args: [
+  #     'beta',
+  #     'run',
+  #     'jobs',
+  #     'execute',
+  #     'spotifyapp',
+  #     '--region',
+  #     'us-central1'
+  #     ]
   #   waitFor: ['push-image-to-artifact-registry']    
 
 images:
