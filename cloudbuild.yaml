@@ -52,13 +52,22 @@ steps:
       ]
     waitFor: ['push-image-to-artifact-registry']
   
-  - id: 'upload pyspark file to gcs'
+  - id: 'upload pyspark pipeline file to gcs'
     name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: gsutil
     args: [
       'cp',
       'spark_jobs/playback_pipeline.py',
       'gs://playback-history/pyspark_jobs/playback_pipeline.py'
+      ]
+
+  - id: 'upload pyspark bq upload file to gcs'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: gsutil
+    args: [
+      'cp',
+      'spark_jobs/playback_pipeline_curated.py',
+      'gs://playback-history/pyspark_jobs/playback_pipeline_curated.py'
       ]
 
   - id: 'schedule data extraction'

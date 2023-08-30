@@ -1,3 +1,4 @@
+import os
 import re
 import logging
 from datetime import datetime, timedelta
@@ -5,6 +6,84 @@ from datetime import datetime, timedelta
 from google.cloud import storage
 
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import current_timestamp, to_utc_timestamp
+
+def move_blob(
+        bucket_name: str,
+        blob_name: str,
+        destination_bucket_name: str,
+        destination_blob_name: str,
+        delete_source_file=False
+    ):
+        """Moves a blob from one bucket to another with a new name.
+        
+        Args:
+            bucket_name: ID of GCS bucket
+            blob_name: ID of GCS object
+            destination_bucket_name: ID of the bucket to move the object to
+            destination_blob_name: ID of new GCS object
+
+        Optional: set a generation-match precondition to avoid potential race conditions
+        and data corruptions. The request is aborted if the object's
+        generation number does not match your precondition. For a destination
+        object that does not yet exist, set the if_generation_match precondition to 0.
+        If the destination object already exists in your bucket, set instead a
+        generation-match precondition using its generation number.
+        """
+
+        storage_client = storage.Client()
+
+        source_bucket = storage_client.bucket(bucket_name)
+        source_blob = source_bucket.blob(blob_name)
+        destination_bucket = storage_client.bucket(destination_bucket_name)
+
+        destination_generation_match_precondition = 0
+
+        try:
+
+            blob_copy = source_bucket.copy_blob(
+                source_blob, destination_bucket, destination_blob_name, if_generation_match=destination_generation_match_precondition,
+            )
+
+            if delete_source_file is True:
+                source_bucket.delete_blob(blob_name)
+                logging.info(f"Deleted blob: {blob_name}")
+
+            logging.info(
+                "Blob {} in bucket {} moved to blob {} in bucket {}.".format(
+                    source_blob.name,
+                    source_bucket.name,
+                    blob_copy.name,
+                    destination_bucket.name,
+                )
+            )
+        except Exception as e:
+            logging.exception(e, stack_info=True)
+
+
+def write_to_gcs(df, output_subfolder: str) -> None:
+        """Write dataframe to GCS bucket. Copies and renames output file
+        for human readability.
+        """
+        try:
+            write_path = f"gs://{bucket_name}/{curated_folder}/{year}/{month}/{day}/{output_subfolder}"
+            df.write.mode("overwrite").format("parquet").option("path", write_path).save(header=True)
+            all_blobs = client.list_blobs(bucket_name, prefix=f"{curated_folder}/{year}/{month}/{day}/{output_subfolder}")  
+            fileList = [file.name for file in all_blobs if '.parquet' in file.name and '/part-' in file.name]
+            output_filepath = fileList[0]
+            logging.debug(fileList)
+            logging.info(f"Output file written to GCS: {write_path}/{output_filepath}")
+
+            renamed_file = f"{year}_{month}_{day}_{output_subfolder}.parquet"
+            renamed_filepath = f"{curated_folder}/{year}/{month}/{day}/{output_subfolder}/{renamed_file}"
+            move_blob(
+                bucket_name=bucket_name,
+                blob_name=output_filepath,
+                destination_bucket_name=bucket_name,
+                destination_blob_name=renamed_filepath
+            )  
+        except Exception as e:
+            logging.exception(e, stack_info=True)
 
 
 if __name__ == "__main__":
@@ -35,15 +114,33 @@ if __name__ == "__main__":
 
     bucket_name = "playback-history"
     clean_folder = "01_clean_zone"
+    curated_folder = "02_curated_zone"
     output_subfolder = "playback_hist"
 
     logging.debug("Current UTC datetime: " + current_datetime)
-
-    # json_file_path = f'gs://{bucket_name}/{clean_folder}/{year}/{month}/{day}/{source_filename}'
 
     client = storage.Client()
 
     bucket = client.bucket(bucket_name)
     
     blobs = bucket.list_blobs(prefix=f"{clean_folder}/{year}/{month}/{day}/")
-    files = [k.name for k in blobs if f"{year}_{month}_{day}_" in k.name]
+    date_str = f"{year}_{month}_{day}_"
+    files = [k.name for k in blobs if date_str in k.name]
+    print(files)
+
+    for csv in files:
+         csv_filepath = f"gs://{bucket_name}/{csv}"
+         filename = os.path.basename(csv)
+         output_subfolder = os.path.dirname(csv).split("/")[-1]
+
+         df = spark.read.csv(csv_filepath, header=True, inferSchema=True)
+         df = df.withColumn("upload_timestamp", current_timestamp())
+         df.show()
+         df.printSchema()
+         write_to_gcs(df, output_subfolder)
+         
+         df.write \
+            .format("bigquery") \
+            .option("writeMethod", "direct") \
+            .mode("append") \
+            .save(f"spotify_hist.{output_subfolder}")
