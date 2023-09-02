@@ -1,12 +1,13 @@
 import os
 import re
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from google.cloud import storage
+from google.cloud import bigquery
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp, to_utc_timestamp
+from pyspark.sql.functions import current_timestamp
 
 def move_blob(
         bucket_name: str,
@@ -106,10 +107,10 @@ if __name__ == "__main__":
     conf.set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
     conf.set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
 
-    yesterday = datetime.now() - timedelta(1)
-    day = yesterday.day
-    month = yesterday.month
-    year = yesterday.year
+    current_date = datetime.now()
+    day = current_date.day
+    month = current_date.month
+    year = current_date.year
     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     bucket_name = "playback-history"
@@ -117,7 +118,7 @@ if __name__ == "__main__":
     curated_folder = "02_curated_zone"
     output_subfolder = "playback_hist"
 
-    logging.debug("Current UTC datetime: " + current_datetime)
+    logging.info("Current UTC datetime: " + current_datetime)
 
     client = storage.Client()
 
@@ -138,8 +139,43 @@ if __name__ == "__main__":
          df.show()
          df.printSchema()
          write_to_gcs(df, output_subfolder)
-         
-         df.write \
+
+    curated_blobs = bucket.list_blobs(prefix=f"{curated_folder}/{year}/{month}/{day}/")
+    parquet_files = [k.name for k in curated_blobs if date_str in k.name]
+    print(files)
+
+    for parquet in parquet_files:
+        parquet_filepath = f"gs://{bucket_name}/{parquet}"
+        filename = os.path.basename(parquet)
+        output_subfolder = os.path.dirname(parquet).split("/")[-1]
+
+        df = spark.read.parquet(parquet_filepath, header=True, inferSchema=True)
+        df.show()
+        df.printSchema()
+
+        def delete_if_exists(df, tablename):
+            if 'played_at' in df.columns:
+                try:
+                    client = bigquery.Client()
+
+                    date = df.first()['played_at']
+                    date_str = f"{date.year}-{date.month}-{date.day}"
+                    delete_statement = (
+                        f'Delete from {tablename} where DATE(played_at) = "{date_str}"'
+                    )
+                    logging.info(f"delete statement: \n {delete_statement}")
+
+                    query_job = client.query(delete_statement)
+                    result = query_job.result()
+
+                    return result
+                except Exception as error:
+                     logging.exception(error, stack_info=True)
+        
+        delete_if_exists(df, f"spotify_hist.{output_subfolder}")
+
+        logging.info("Uploading to bigquery")
+        df.write \
             .format("bigquery") \
             .option("writeMethod", "direct") \
             .mode("append") \

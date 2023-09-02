@@ -1,6 +1,6 @@
 import re
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from google.cloud import storage
 
@@ -251,10 +251,10 @@ if __name__ == "__main__":
     clean_folder = "01_clean_zone"
     output_subfolder = "playback_hist"
 
-    yesterday = datetime.now() - timedelta(1)
-    current_day = yesterday.day
-    current_month = yesterday.month
-    current_year = yesterday.year
+    current_date = datetime.now()
+    current_day = current_date.day
+    current_month = current_date.month
+    current_year = current_date.year
     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     logging.debug("Current UTC datetime: " + current_datetime)
