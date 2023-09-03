@@ -4,10 +4,9 @@ import logging
 from datetime import datetime
 
 from google.cloud import storage
-from google.cloud import bigquery
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp
+from pyspark.sql.functions import current_timestamp, to_date
 
 def move_blob(
         bucket_name: str,
@@ -185,6 +184,13 @@ if __name__ == "__main__":
         output_subfolder = os.path.dirname(parquet).split("/")[-1]
 
         df = spark.read.parquet(parquet_filepath, header=True, inferSchema=True)
+
+        if "album_release_date" in df.columns:
+            try:
+                df = df.withColumn("album_release_date", to_date("album_release_date"))
+            except Exception as error:
+                logging.exception(error, stack_info=True)
+
         df = df.drop_duplicates()
         df.show()
         df.printSchema()
