@@ -1,13 +1,14 @@
 import os
-import pytz
+import re
 import logging
+import pytz
 from datetime import datetime
 
 from google.cloud import storage
 from google.cloud import bigquery
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp
+from pyspark.sql.functions import current_timestamp, to_date
 
 def move_blob(
         bucket_name: str,
@@ -87,11 +88,27 @@ def write_to_gcs(df, output_subfolder: str) -> None:
             logging.exception(e, stack_info=True)
 
 
+def delete_if_exists(df, tablename):
+    if 'played_at' in df.columns:
+        try:
+            client = bigquery.Client()
+            timestamp_list = df.select('played_at').collect()
+            timestamp_list_utc = sorted([row.played_at.astimezone(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S.%f') for row in timestamp_list])
+            timestamp_list_utc_str = '", "'.join(timestamp_list_utc)
+
+            date = df.first()['played_at']
+            delete_sql = f'DELETE FROM `{tablename}` WHERE played_at IN ("{timestamp_list_utc_str}");'
+            logging.info(f"delete statement: \n {delete_sql}")
+
+            query_job = client.query(delete_sql)
+            result = query_job.result()
+
+            return result
+        except Exception as error:
+                logging.exception(error, stack_info=True)
+
+
 def filter_playback_df(df, tablename):
-    """Prevent duplicate records from being uploaded to BigQuery.
-    Checks Bigquery table for timestamps found in spark df.
-    If timestamp already exists in Bigquery, does not upload the identical record.
-    """
     if 'played_at' in df.columns:
         try:
 
@@ -107,8 +124,6 @@ def filter_playback_df(df, tablename):
 
             try:
                 df = df.join(bq_df, ['played_at'], "leftanti")
-                logging.info("dataframe filtered out duplicates:")
-                df.show()
             except Exception as error:
                 logging.exception(error)
 
@@ -118,6 +133,7 @@ def filter_playback_df(df, tablename):
              logging.exception(error, stack_info=True)
     else:
          return df
+        
 
 
 if __name__ == "__main__":
@@ -140,10 +156,10 @@ if __name__ == "__main__":
     conf.set("fs.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem")
     conf.set("fs.AbstractFileSystem.gs.impl", "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS")
 
-    current_date = datetime.now()
-    day = current_date.day
-    month = current_date.month
-    year = current_date.year
+    # current_date = datetime.now()
+    # day = current_date.day
+    # month = current_date.month
+    # year = current_date.year
     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     bucket_name = "playback-history"
@@ -154,54 +170,59 @@ if __name__ == "__main__":
     logging.info("Current UTC datetime: " + current_datetime)
 
     client = storage.Client()
+    
 
     bucket = client.bucket(bucket_name)
-    
-    blobs = bucket.list_blobs(prefix=f"{clean_folder}/{year}/{month}/{day}/")
-    date_str = f"{year}_{month}_{day}_"
-    csv_files = [k.name for k in blobs if date_str in k.name]
-    logging.info(f"csv file list: {csv_files}")
 
-    for csv in csv_files:
-         csv_filepath = f"gs://{bucket_name}/{csv}"
-         filename = os.path.basename(csv)
-         output_subfolder = os.path.dirname(csv).split("/")[-1]
+    # clean_csv_files = sorted([k.name for k in bucket.list_blobs(prefix=clean_folder) if k.name.endswith('.csv') and not '/part-' in k.name])
+    # for csv in clean_csv_files:
+    #     csv_filepath = f"gs://{bucket_name}/{csv}"
+    #     filename = os.path.basename(csv)
+    #     output_subfolder = os.path.dirname(csv).split("/")[-1]
 
-         df = spark.read.csv(csv_filepath, header=True, inferSchema=True)
-         df = df.withColumn("upload_timestamp", current_timestamp())
-         df = df.select([df.columns[-1]] + df.columns[:-1])
-         df = df.drop_duplicates()
-         df.show()
-         df.printSchema()
-         write_to_gcs(df, output_subfolder)
+    #     df = spark.read.csv(csv_filepath, header=True, inferSchema=True)
+    #     df = df.drop_duplicates()
+    #     df = df.withColumn("upload_timestamp", current_timestamp())
+    #     df = df.select([df.columns[-1]] + df.columns[:-1])
+    #     df.show()
+    #     df.printSchema()
+    #     filepath = os.path.dirname(csv)
+    #     year = filepath.split("/")[1]
+    #     month = filepath.split("/")[2]
+    #     day = filepath.split("/")[3]
+    #     write_to_gcs(df, output_subfolder)
 
-    curated_blobs = bucket.list_blobs(prefix=f"{curated_folder}/{year}/{month}/{day}/")
-    parquet_files = [k.name for k in curated_blobs if date_str in k.name]
-    logging.info(f"parquet file list: {parquet_files}")
-
-    for parquet in parquet_files:
+    curated_parquet_files = sorted([k.name for k in bucket.list_blobs(prefix=curated_folder) if k.name.endswith('.parquet') and not '/part-' in k.name])
+    for parquet in curated_parquet_files:
         parquet_filepath = f"gs://{bucket_name}/{parquet}"
         filename = os.path.basename(parquet)
         output_subfolder = os.path.dirname(parquet).split("/")[-1]
 
         df = spark.read.parquet(parquet_filepath, header=True, inferSchema=True)
+
+        if "album_release_date" in df.columns:
+            try:
+                df = df.withColumn("album_release_date", to_date("album_release_date"))
+            except Exception as error:
+                logging.exception(error, stack_info=True)
+
         df = df.drop_duplicates()
         df.show()
         df.printSchema()
         
+        # r = delete_if_exists(df, f"spotify_hist.{output_subfolder}")
+        # logging.info(r)
+
         try:
             df = filter_playback_df(df, f"spotify_hist.{output_subfolder}")
         except Exception as error:
             logging.exception(error, stack_info=True)
         
-        row_count = df.count()
-        if row_count > 0:
+        if df.count() > 0:
 
-            logging.info(f"Uploading {row_count} row(s) to BigQuery")
+            logging.info("Uploading to bigquery")
             df.write \
                 .format("bigquery") \
                 .option("writeMethod", "direct") \
                 .mode("append") \
                 .save(f"spotify_hist.{output_subfolder}")
-        else:
-            logging.info(f"Uploaded {row_count} to BigQuery")
