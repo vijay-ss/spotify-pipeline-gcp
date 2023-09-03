@@ -1,5 +1,4 @@
 import os
-import re
 import logging
 import pytz
 from datetime import datetime
@@ -174,23 +173,23 @@ if __name__ == "__main__":
 
     bucket = client.bucket(bucket_name)
 
-    # clean_csv_files = sorted([k.name for k in bucket.list_blobs(prefix=clean_folder) if k.name.endswith('.csv') and not '/part-' in k.name])
-    # for csv in clean_csv_files:
-    #     csv_filepath = f"gs://{bucket_name}/{csv}"
-    #     filename = os.path.basename(csv)
-    #     output_subfolder = os.path.dirname(csv).split("/")[-1]
+    clean_csv_files = sorted([k.name for k in bucket.list_blobs(prefix=clean_folder) if k.name.endswith('.csv') and not '/part-' in k.name])
+    for csv in clean_csv_files:
+        csv_filepath = f"gs://{bucket_name}/{csv}"
+        filename = os.path.basename(csv)
+        output_subfolder = os.path.dirname(csv).split("/")[-1]
 
-    #     df = spark.read.csv(csv_filepath, header=True, inferSchema=True)
-    #     df = df.drop_duplicates()
-    #     df = df.withColumn("upload_timestamp", current_timestamp())
-    #     df = df.select([df.columns[-1]] + df.columns[:-1])
-    #     df.show()
-    #     df.printSchema()
-    #     filepath = os.path.dirname(csv)
-    #     year = filepath.split("/")[1]
-    #     month = filepath.split("/")[2]
-    #     day = filepath.split("/")[3]
-    #     write_to_gcs(df, output_subfolder)
+        df = spark.read.csv(csv_filepath, header=True, inferSchema=True)
+        df = df.drop_duplicates()
+        df = df.withColumn("upload_timestamp", current_timestamp())
+        df = df.select([df.columns[-1]] + df.columns[:-1])
+        df.show()
+        df.printSchema()
+        filepath = os.path.dirname(csv)
+        year = filepath.split("/")[1]
+        month = filepath.split("/")[2]
+        day = filepath.split("/")[3]
+        write_to_gcs(df, output_subfolder)
 
     curated_parquet_files = sorted([k.name for k in bucket.list_blobs(prefix=curated_folder) if k.name.endswith('.parquet') and not '/part-' in k.name])
     for parquet in curated_parquet_files:
