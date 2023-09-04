@@ -86,14 +86,16 @@ def write_to_gcs(df, output_subfolder: str) -> None:
             logging.exception(e, stack_info=True)
 
 
-def filter_playback_df(df, tablename):
-    """Prevent duplicate records from being uploaded to BigQuery.
+def delta_load_tracks(df, tablename):
+    """Prevent duplicate records from being uploaded to BigQuery,
+    and only upload track if it doesn't already exist.
     Checks Bigquery table for timestamps found in spark df.
     If timestamp already exists in Bigquery, does not upload the identical record.
     """
     if 'played_at' in df.columns:
         try:
-
+            input_row_count = df.count()
+            logging.info(f"playback_df row count: {input_row_count}")
             timestamp_list = df.select('played_at').collect()
             timestamp_list_utc = sorted([row.played_at.astimezone(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S.%f') for row in timestamp_list])
             timestamp_list_utc_str = '", "'.join(timestamp_list_utc)
@@ -106,6 +108,8 @@ def filter_playback_df(df, tablename):
 
             try:
                 df = df.join(bq_df, ['played_at'], "leftanti")
+                delta_row_count = df.count()
+                logging.info(f"delta row count: {delta_row_count}")
                 logging.info("dataframe filtered out duplicates:")
                 df.show()
             except Exception as error:
@@ -196,7 +200,7 @@ if __name__ == "__main__":
         df.printSchema()
         
         try:
-            df = filter_playback_df(df, f"spotify_hist.{output_subfolder}")
+            df = delta_load_tracks(df, f"spotify_hist.{output_subfolder}")
         except Exception as error:
             logging.exception(error, stack_info=True)
         

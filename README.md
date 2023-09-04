@@ -18,3 +18,11 @@ and place the .jar file in your local venv pyspark directory. In this case: `ven
 ```
 gcloud builds submit --config cloudbuild.yaml
 ```
+
+## Further Development/Improvements
+This project is by no means 'complete', as there are still many improvements which can be implemented:
+
+- configure streaming of playback history in real-time, rather than batch loads
+- code cleanup & refactoring: separate pyspark pipeline steps into separate, modular packages for code reusability across different pipelines
+- configure separate test and production environments within Github Actions
+- Nice to have: Visualization/dashboard for analysis frequently played songs, genres, artists
