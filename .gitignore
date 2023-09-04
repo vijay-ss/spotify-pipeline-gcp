@@ -141,3 +141,6 @@ playback_hist/
 
 # macos
 *.DS_Store
+
+# architecture diagram
+*.excalidraw
