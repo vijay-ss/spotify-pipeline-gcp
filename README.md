@@ -1,4 +1,10 @@
-# spotify-pipeline-gcp
+# Spotify Batch ETL Pipeline on GCP
+
+This project is a btach ETL pipeline designed to ingest a singe user's playback history, automated to run on a daily basis. The Spotify API allows the developer to extract up to 50 songs played per day (at the time of writing this). The end-to-end process involves extracting the data from source, performing some transformation steps and finally uploading the results to GCP Bigquery, following best practices and automation of the CI/CD process.
+
+## Architecture
+
+![](img/spotify_pipeline_architecture.png)
 
 ## Setup Pyspark for local development
 
